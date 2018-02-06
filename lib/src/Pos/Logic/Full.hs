@@ -10,7 +10,6 @@ import           Universum
 
 import           Control.Lens (at, to)
 import           Control.Monad.Trans.Except (runExceptT)
-import           Data.Conduit (Source)
 import qualified Data.HashMap.Strict as HM
 import           Data.Tagged (Tagged (..), tagWith)
 import           Formatting (build, sformat, (%))
@@ -18,8 +17,8 @@ import           System.Wlog (WithLogger, logDebug)
 
 import           Pos.Block.BlockWorkMode (BlockWorkMode)
 import           Pos.Block.Configuration (HasBlockConfiguration)
-import qualified Pos.Block.Logic as DB (getHeadersFromManyTo, getHeadersRange)
-import qualified Pos.Block.Network.Logic as Block (handleUnsolicitedHeader)
+import qualified Pos.Block.Logic as Block
+import qualified Pos.Block.Network.Logic as Block
 import           Pos.Block.Types (RecoveryHeader, RecoveryHeaderTag)
 import           Pos.Communication (NodeId)
 import           Pos.Core (Block, BlockHeader, BlockVersionData, HasConfiguration, HeaderHash,
@@ -35,9 +34,7 @@ import           Pos.DB.Class (MonadBlockDBRead, MonadDBRead, MonadGState (..))
 import qualified Pos.DB.Class as DB (getBlock)
 import           Pos.Delegation.Listeners (DlgListenerConstraint)
 import qualified Pos.Delegation.Listeners as Delegation (handlePsk)
-import qualified Pos.GState.BlockExtra as DB (blocksSourceFrom)
-import           Pos.Logic.Types (GetBlockHeadersError (..), KeyVal (..), Logic (..),
-                                  LogicLayer (..))
+import           Pos.Logic.Types (KeyVal (..), Logic (..), LogicLayer (..))
 import           Pos.Recovery (MonadRecoveryInfo)
 import qualified Pos.Recovery as Recovery
 import           Pos.Security.Params (SecurityParams)
@@ -105,9 +102,6 @@ logicLayerFull jsonLogTx k = do
         getBlock :: HeaderHash -> m (Maybe Block)
         getBlock = DB.getBlock
 
-        getChainFrom :: HeaderHash -> Source m Block
-        getChainFrom = DB.blocksSourceFrom
-
         getTip :: m Block
         getTip = DB.getTipBlock
 
@@ -123,25 +117,19 @@ logicLayerFull jsonLogTx k = do
         getBlockHeader :: HeaderHash -> m (Maybe BlockHeader)
         getBlockHeader = DB.getHeader
 
+        getHashesRange
+            :: Maybe Word -- ^ Optional limit on how many to pull in.
+            -> HeaderHash
+            -> HeaderHash
+            -> m (OldestFirst NE HeaderHash)
+        getHashesRange = Block.getHashesRange
+
         getBlockHeaders
             :: Maybe Word -- ^ Optional limit on how many to pull in.
             -> NonEmpty HeaderHash
             -> Maybe HeaderHash
-            -> m (Either GetBlockHeadersError (NewestFirst NE BlockHeader))
-        getBlockHeaders mLimit checkpoints start = do
-            result <- runExceptT (DB.getHeadersFromManyTo mLimit checkpoints start)
-            either (pure . Left . GetBlockHeadersError) (pure . Right) result
-
-        getBlockHeaders'
-            :: Maybe Word -- ^ Optional limit on how many to pull in.
-            -> HeaderHash
-            -> HeaderHash
-            -> m (Either GetBlockHeadersError (OldestFirst NE HeaderHash))
-        getBlockHeaders' mLimit older newer = do
-            outcome <- DB.getHeadersRange mLimit older newer
-            case outcome of
-                Left txt -> pure (Left (GetBlockHeadersError txt))
-                Right it -> pure (Right it)
+            -> m (NewestFirst NE BlockHeader)
+        getBlockHeaders = Block.getHeadersFromManyTo
 
         postBlockHeader :: BlockHeader -> NodeId -> m ()
         postBlockHeader = Block.handleUnsolicitedHeader

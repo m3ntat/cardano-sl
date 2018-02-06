@@ -43,10 +43,9 @@ pureLogic
 pureLogic = Logic
     { ourStakeholderId   = stakeholderId
     , getBlock           = \_ -> pure (Just block)
-    , getChainFrom       = \_ -> pure ()
     , getBlockHeader     = \_ -> pure (Just blockHeader)
-    , getBlockHeaders    = \_ _ _ -> pure (Right (NewestFirst (pure blockHeader)))
-    , getBlockHeaders'   = \_ _ _ -> pure (Right (OldestFirst (pure mainBlockHeaderHash)))
+    , getHashesRange     = \_ _ _ -> pure (OldestFirst (pure mainBlockHeaderHash))
+    , getBlockHeaders    = \_ _ _ -> pure (NewestFirst (pure blockHeader))
     , getTip             = pure block
     , getTipHeader       = pure blockHeader
     , getAdoptedBVData   = pure blockVersionData

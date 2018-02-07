@@ -375,7 +375,7 @@ instance ReportSchemaErrors m => FromObjectKey m StakeholderId where
     fromObjectKey = fmap Just . tryParseString (decodeAbstractHash) . JSString
 
 instance ReportSchemaErrors m => FromJSON m Coin where
-    fromJSON = fmap Coin . fromJSON
+    fromJSON = fmap UnsafeCoin . fromJSON
 
 instance ReportSchemaErrors m => FromJSON m CoinPortion where
     fromJSON val = do

@@ -48,8 +48,8 @@ module Pos.Core.Txp
 
 import           Universum
 
-import           Control.Monad.Except (MonadError(throwError))
 import           Control.Lens (makeLenses, makePrisms)
+import           Control.Monad.Except (MonadError (throwError))
 import           Data.Hashable (Hashable)
 import qualified Data.Text.Buildable as Buildable
 import           Data.Vector (Vector)
@@ -62,7 +62,7 @@ import           Serokell.Util.Verify (VerificationRes (..), verResSingleF, veri
 import           Pos.Binary.Class (Bi)
 import           Pos.Binary.Core.Address ()
 import           Pos.Binary.Crypto ()
-import           Pos.Core.Common (Address (..), Coin (..), Script, addressHash, coinF, checkCoin)
+import           Pos.Core.Common (Address (..), Coin (..), Script, addressHash, coinF)
 import           Pos.Crypto (Hash, PublicKey, RedeemPublicKey, RedeemSignature, Signature, hash,
                              shortHashF)
 import           Pos.Data.Attributes (Attributes, areAttributesKnown)
@@ -249,6 +249,9 @@ checkTx it =
                 i
           )
         ]
+
+instance PVerifiable Tx where
+    pverify =
 
 -- | Check that a 'TxAux' is internally valid (checks that its 'Tx' is valid
 -- via 'checkTx'). Does not check the witness.

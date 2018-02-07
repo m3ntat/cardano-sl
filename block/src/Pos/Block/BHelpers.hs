@@ -3,7 +3,7 @@
 
 -- | Definition of 'BlockchainHelpers' for the main blockchain.
 --
--- FIXME rename this module to something to do with verification.
+-- TODO CSL-2072 rename this module to something to do with verification.
 
 module Pos.Block.BHelpers
        ( verifyBlockHeader

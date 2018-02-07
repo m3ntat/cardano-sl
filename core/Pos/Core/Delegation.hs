@@ -12,12 +12,10 @@ module Pos.Core.Delegation
        , DlgPayload (..)
        , DlgProof
        , mkDlgProof
-       , checkDlgPayload
        ) where
 
 import           Universum
 
-import           Control.Monad.Except (MonadError)
 import           Data.Default (Default (def))
 import qualified Data.Set as S
 import qualified Data.Text.Buildable
@@ -27,7 +25,8 @@ import           Serokell.Util (listJson, pairF)
 import           Pos.Binary.Class (Bi)
 import           Pos.Core.Slotting.Types (EpochIndex)
 import           Pos.Crypto (HasCryptoConfiguration, Hash, ProxySecretKey (..), ProxySignature,
-                             hash, validateProxySecretKey)
+                             hash)
+import           Pos.Util.Verification (PVerifiable (..), pverField)
 
 ----------------------------------------------------------------------------
 -- Proxy signatures and signing keys
@@ -96,11 +95,10 @@ instance Buildable DlgPayload where
             ("proxy signing keys ("%int%" items): "%listJson%"\n")
             (S.size psks) (toList psks)
 
-checkDlgPayload ::
-       (HasCryptoConfiguration, MonadError Text m, Bi HeavyDlgIndex)
-    => DlgPayload
-    -> m ()
-checkDlgPayload (DlgPayload x) = forM_ x validateProxySecretKey
+instance (HasCryptoConfiguration, Bi HeavyDlgIndex) => PVerifiable DlgPayload where
+    pverify (DlgPayload x) =
+        pverField "dlgPayload" $ forM_ x pverify
+
 
 -- | Proof of delegation payload.
 type DlgProof = Hash DlgPayload

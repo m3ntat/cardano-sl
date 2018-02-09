@@ -6,6 +6,11 @@ module Pos.Wallet.Web.State.Storage
        (
          WalletStorage (..)
        , HasWalletStorage (..)
+       , WAddressMeta (..)
+       , HasWAddressMeta (..)
+       , wamAccount
+       , wamToCWam
+       , cwamToWam
        , WalletInfo (..)
        , AccountInfo (..)
        , AddressInfo (..)
@@ -89,17 +94,22 @@ module Pos.Wallet.Web.State.Storage
 
 import           Universum
 
-import           Control.Lens                    (at, ix, makeClassy, makeLenses, non', to,
-                                                  toListOf, traversed, (%=), (+=), (.=),
-                                                  (<<.=), (?=), _Empty, _head, lens)
+import           Control.Lens                    (at, ix, lens, makeClassy,
+                                                  makeLenses, non', to, toListOf,
+                                                  traversed, (%=), (+=), (.=), (<<.=),
+                                                  (?=), _Empty, _head)
 import           Control.Monad.State.Class       (put)
 import           Data.Default                    (Default, def)
+import           Data.Hashable                   (Hashable)
 import qualified Data.HashMap.Strict             as HM
 import qualified Data.Map                        as M
-import           Data.SafeCopy                   (Migrate (..), base, deriveSafeCopySimple,
-                                                  extension)
+import           Data.SafeCopy                   (Migrate (..), base,
+                                                  deriveSafeCopySimple, extension)
 import           Data.Time.Clock.POSIX           (POSIXTime)
 
+import qualified Data.Text.Buildable
+import           Formatting                      ((%))
+import qualified Formatting                      as F
 import           Pos.Client.Txp.History          (TxHistoryEntry, txHistoryListToMap)
 import           Pos.Core.Configuration.Protocol (HasProtocolConstants)
 import           Pos.Core.Types                  (Address, SlotId, Timestamp)
@@ -120,13 +130,18 @@ import           Pos.Wallet.Web.Pending.Updates  (cancelApplyingPtx,
 
 -- | Address with associated metadata locating it in an account in a wallet.
 data WAddressMeta = WAddressMeta
-    { _wamWalletId :: WebTypes.CId WebTypes.Wal
+    { _wamWalletId     :: WebTypes.CId WebTypes.Wal
     , _wamAccountIndex :: Word32
     , _wamAddressIndex :: Word32
-    , _wamAddress :: Address
+    , _wamAddress      :: Address
     } deriving (Eq, Ord, Show, Generic, Typeable)
 
-makeLenses ''WAddressMeta
+makeClassy ''WAddressMeta
+instance Hashable WAddressMeta
+instance Buildable WAddressMeta where
+    build WAddressMeta{..} =
+        F.bprint (F.build%"@"%F.build%"@"%F.build%" ("%F.build%")")
+        _wamWalletId _wamAccountIndex _wamAddressIndex _wamAddress
 
 -- | Lens to extract the account from an 'AddressMeta'
 wamAccount :: Lens' WAddressMeta WebTypes.AccountId
@@ -135,12 +150,22 @@ wamAccount = lens
     (\am (WebTypes.AccountId wid accIdx) -> set wamWalletId wid
                                             . set wamAccountIndex accIdx $ am)
 
+-- | Iso reflecting the equivalence between WAddressMeta and its client
+--   equivalent.
+wamToCWam :: WAddressMeta -> WebTypes.CWAddressMeta
+wamToCWam =
+    (\(WAddressMeta wid accIdx addrIdx addr) ->
+       WebTypes.CWAddressMeta wid accIdx addrIdx (WebTypes.addressToCId addr))
+cwamToWam :: WebTypes.CWAddressMeta -> Either Text WAddressMeta
+cwamToWam =
+    (\(WebTypes.CWAddressMeta wid accIdx addrIdx cAddr) ->
+       WAddressMeta wid accIdx addrIdx <$> WebTypes.cIdToAddress cAddr)
 
 type AddressSortingKey = Int
 
 data AddressInfo = AddressInfo
     { adiWAddressMeta :: !WAddressMeta
-    , adiSortingKey    :: !AddressSortingKey
+    , adiSortingKey   :: !AddressSortingKey
     }
 
 type CAddresses = HashMap Address AddressInfo

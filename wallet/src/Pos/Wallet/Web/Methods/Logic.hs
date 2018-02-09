@@ -53,7 +53,7 @@ import           Pos.Wallet.Web.Error       (WalletError (..))
 import           Pos.Wallet.Web.Mode        (MonadWalletWebMode, convertCIdTOAddr)
 import           Pos.Wallet.Web.State       (WalletSnapshot, AddressLookupMode (Existing), AddressInfo (..),
                                              CustomAddressType (ChangeAddr, UsedAddr),
-                                             askWalletDB,
+                                             askWalletDB, wamToCWam,
                                              addWAddress, createAccountWithAddress,
                                              createWallet,
                                              getAccountIds, doesAccountExist,
@@ -100,13 +100,16 @@ getWAddressBalanceWithMod ws accMod addr =
 getWAddress
     :: MonadWalletWebMode m
     => WalletSnapshot
-    -> CachedCAccModifier -> CWAddressMeta -> m CAddress
+    -> CachedCAccModifier
+    -> CWAddressMeta
+    -> m CAddress
 getWAddress ws cachedAccModifier cAddr = do
     let aId = cwamId cAddr
     balance <- getWAddressBalanceWithMod ws cachedAccModifier cAddr
+    addr <- convertCIdTOAddr $ cwamId cAddr
 
     let getFlag customType accessMod =
-            let checkDB = isCustomAddress ws customType (cwamId cAddr)
+            let checkDB = isCustomAddress ws customType addr
                 checkMempool = elem aId . map (fst . fst) . toList $
                                MM.insertions $ accessMod cachedAccModifier
              in checkDB || checkMempool
@@ -121,7 +124,7 @@ getAccountMod
     -> AccountId
     -> m CAccount
 getAccountMod ws accMod accId = do
-    dbAddrs    <- map adiCWAddressMeta . sortOn adiSortingKey <$> getAccountAddrsOrThrow ws Existing accId
+    dbAddrs    <- map adiWAddressMeta . sortOn adiSortingKey <$> getAccountAddrsOrThrow ws Existing accId
     let allAddrIds = gatherAddresses (camAddresses accMod) dbAddrs
     allAddrs <- mapM (getWAddress ws accMod) allAddrIds
     balance <- mkCCoin . unsafeIntegerToCoin . sumCoins <$>
@@ -214,7 +217,7 @@ newAddress_ ws addGenSeed passphrase accId = do
     cAccAddr <- genUniqueAddress ws addGenSeed passphrase accId
     db <- askWalletDB
     addWAddress db cAccAddr
-    return cAccAddr
+    return $ wamToCWam cAccAddr
   where
     noAccount =
         RequestError $ sformat ("No account with id "%build%" found") accId

@@ -121,25 +121,28 @@ getBlocks logic enqueue nodeId tipHeader checkpoints = do
     -- the block itself.
     blocks <- if singleBlockHeader
               then requestBlocks (OldestFirst (one tipHeader))
-              else twoPhaseAction
+              else requestAndClassifyHeaders >>= requestBlocks
     pure (OldestFirst (reverse (toList blocks)))
   where
 
-    twoPhaseAction = do
+    requestAndClassifyHeaders :: d (OldestFirst NE BlockHeader)
+    requestAndClassifyHeaders = do
         headers <- toOldestFirst <$> requestHeaders
         getLcaMainChain logic headers >>= \case
             Nothing -> throwM $ DialogUnexpected $ "Got headers, but couldn't compute " <>
                                                    "LCA to ask for blocks"
             Just (lca :: HeaderHash) -> do
-                -- Headers list is (newest to oldest)
-                -- [n1,n2,...nj,lca,nj+2,...nk] we take [n1..nj] and
-                -- request related blocks, as we already have lca in
-                -- our local db.
+                -- Headers list is (oldest to newest)
+                -- [n1,n2,...nj,lca,nj+2,...nk] we drop [n1..lca] and
+                -- return [nj+2..nk], as we already have lca in our
+                -- local db. Usually this function does 1 iterations
+                -- as it's a common case that [n1..nj] is absent and
+                -- lca is the oldest header.
                 let dropUntilLca = NE.dropWhile (\h -> h ^. prevBlockL /= lca)
                 case nonEmpty (dropUntilLca $ getOldestFirst headers) of
                     Nothing -> throwM $ DialogUnexpected $
                                    "All headers are older than LCA, nothing to query"
-                    Just headersSuffix -> requestBlocks (OldestFirst headersSuffix)
+                    Just headersSuffix -> pure (OldestFirst headersSuffix)
 
     singleBlockHeader :: Bool
     singleBlockHeader = case checkpoints of
